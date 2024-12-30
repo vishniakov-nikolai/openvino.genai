@@ -2,7 +2,7 @@
   "name": "genai-node",
   "type": "module",
   "version": "2024.6.0-preview",
-  "description": "OpenVINO™ Generative AI pipelines for using from Node.js environment",
+  "description": "Generative AI pipelines for using from Node.js environment",
   "license": "Apache-2.0",
   "main": "./lib/module.js",
   "os": [
@@ -13,11 +13,6 @@
   "engines": {
     "node": ">=21.0.0"
   },
-  "keywords": [
-    "OpenVINO",
-    "OpenVINO GenAI",
-    "GenAI"
-  ],
   "scripts": {
     "test_setup": "node ./tests/setup.js",
     "test": "npm run test_setup && node --test ./tests/*.test.js",
