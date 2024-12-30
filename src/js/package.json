@@ -1,5 +1,5 @@
 {
-  "name": "genai-node",
+  "name": "generative-ai-node",
   "type": "module",
   "version": "2024.6.0-preview",
   "description": "Generative AI pipelines for using from Node.js environment",
