@@ -20,34 +20,38 @@ struct TsfnContext {
 };
 
 void performInferenceThread(TsfnContext* context) {
-    auto callback = [](Napi::Env env, Napi::Function js_callback, TsfnContext* context) {
-        try {
-            std::function<bool(std::string)> streamer = [env, js_callback](std::string word) {
-                js_callback.Call({
-                    Napi::Boolean::New(env, false),
-                    Napi::String::New(env, word)
-                });
-
-                // Return flag corresponds whether generation should be stopped.
-                // false means continue generation.
-                return false;
-            };
-
-            ov::genai::GenerationConfig config;
-
-            config.update_generation_config(*context->options);
-
-            context->pipe->generate(context->prompt, config, streamer);
-            js_callback.Call({
-                Napi::Boolean::New(env, true)
-            });
-        } catch(std::exception& err) {
-            Napi::Error::Fatal("performInferenceThread callback error. Details:" , err.what());
-        }
-    };
-
     try {
-        napi_status status = context->tsfn.BlockingCall(context, callback);
+        ov::genai::GenerationConfig config;
+        config.update_generation_config(*context->options);
+
+        std::function<bool(std::string)> streamer = [context](std::string word) {
+            napi_status status = context->tsfn.BlockingCall([word](Napi::Env env, Napi::Function jsCallback) {
+                try {
+                    jsCallback.Call({
+                        Napi::Boolean::New(env, false),
+                        Napi::String::New(env, word)
+                    });
+                } catch(std::exception& err) {
+                    Napi::Error::Fatal("performInferenceThread callback error. Details:" , err.what());
+                }
+            });
+            if (status != napi_ok) {
+                // Handle error
+                Napi::Error::Fatal("performInferenceThread error", "napi_status != napi_ok");
+            }
+
+            // Return flag corresponds whether generation should be stopped.
+            // false means continue generation.
+            return false;
+        };
+
+        context->pipe->generate(context->prompt, config, streamer);
+        napi_status status = context->tsfn.BlockingCall([](Napi::Env env, Napi::Function jsCallback) {
+            jsCallback.Call({
+                Napi::Boolean::New(env, true),
+            });
+        });
+
         if (status != napi_ok) {
             // Handle error
             Napi::Error::Fatal("performInferenceThread error", "napi_status != napi_ok");
@@ -83,6 +87,20 @@ Napi::Value LLMPipelineWrapper::init(const Napi::CallbackInfo& info) {
     asyncWorker->Queue();
 
     return info.Env().Undefined();
+}
+
+void GenerateChunks(ThreadSafeFunction tsfn) {
+    std::thread([tsfn]() {
+        for (int i = 0; i < 5; i++) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+
+            // Call JS callback with new data
+            tsfn.BlockingCall([i](Napi::Env env, Napi::Function jsCallback) {
+                jsCallback.Call({ env.Undefined(), Napi::String::New(env, "Chunk " + std::to_string(i)) });
+            });
+        }
+        tsfn.Release();
+    }).detach();
 }
 
 Napi::Value LLMPipelineWrapper::generate(const Napi::CallbackInfo& info) {
@@ -127,6 +145,18 @@ Napi::Value LLMPipelineWrapper::generate(const Napi::CallbackInfo& info) {
     }
 
     return Napi::Boolean::New(env, true);
+
+    // Napi::Env env = info.Env();
+    // Napi::Function jsCallback = info[1].As<Napi::Function>();
+
+    // // Create thread-safe function
+    // ThreadSafeFunction tsfn = ThreadSafeFunction::New(
+    //     env, jsCallback, "GeneratorCallback", 0, 1);
+
+    // GenerateChunks(tsfn);
+    // std::cout << "Generate called" << std::endl;
+
+    // return env.Undefined();
 }
 
 Napi::Value LLMPipelineWrapper::start_chat(const Napi::CallbackInfo& info) {
