@@ -50,10 +50,10 @@ describe('bindings', () => {
 
         return;
       }
-    }, { temperature: '0', max_new_tokens: '4' });
 
-    assert.ok(true);
-    done();
+      assert.ok(true);
+      done();
+    }, { temperature: '0', max_new_tokens: '4' });
   });
 
   it('should generate "Hello world"', (_, done) => {
